@@ -67,11 +67,14 @@ def generate_variables(params, node_count):
         "manager_machine_type": params.manager_machine_type,
         "manager_name_prefix": params.manager_name_prefix,
         "manager_scopes": params.manager_scopes,
-        "login_node_specs": login_node_specs,
+        "login_node_specs": [login_node_specs],
         "login_scopes": params.login_scopes,
-        "compute_node_specs": compute_node_specs,
+        "compute_node_specs": [compute_node_specs],
         "compute_scopes": params.compute_scopes,
         "broker_config": "",
+        "manager_family": params.manager_family,
+        "compute_family": params.compute_family,
+        "login_family": params.login_family,
     }
     # If we have a custom broker config, use it.
     if params.broker_config:

@@ -13,6 +13,7 @@
 # limitations under the License.
 
 variable "compute_node_specs" {
+    description = "A list of compute node specifications"
     type = list(object({
        name_prefix  = string
        machine_arch = string
@@ -23,44 +24,55 @@ variable "compute_node_specs" {
        instances    = number
        properties   = set(string)
        boot_script  = string
-       broker_config  = string
     }))
+    default = []
 }
 
 variable "compute_scopes" {
-    type = set(string)
+    description = "The set of access scopes for compute node instances"
+    default     = [ "cloud-platform" ]
+    type        = set(string)
 }
 
 variable "login_node_specs" {
+    description = "A list of login node specifications"
     type = list(object({
-       name_prefix    = string
-       machine_arch   = string
-       machine_type   = string
-       instances      = number
-       properties     = set(string)
-       boot_script    = string
-       broker_config  = string
+       name_prefix  = string
+       machine_arch = string
+       machine_type = string
+       instances    = number
+       properties   = set(string)
+       boot_script  = string
     }))
+    default = []
 }
 
 variable "login_scopes" {
+    description = "The set of access scopes for login node instances"
+    default     = [ "cloud-platform" ]
     type = set(string)
 }
 
 variable "manager_machine_type" {
-    type = string
-}
-
-variable "broker_config" {
-    type = string
+    description = "The Compute Engine machine type to be used for the management node [note: must be an x86_64 or AMD machine type]"
+    type        = string
 }
 
 variable "manager_name_prefix" {
-    type = string
+    description = "The name prefix for the management node instance, the full instance name will be this prefix followed by node number"
+    type        = string
 }
 
 variable "manager_scopes" {
+    description = "The set of access scopes for management node instance"
+    default     = [ "cloud-platform" ]
     type = set(string)
+}
+
+variable "broker_config" {
+    type     = string
+    default  = ""
+    nullable = true
 }
 
 variable "network_name" {
@@ -78,10 +90,13 @@ variable "nfs_size" {
 }
 
 variable "project_id" {
-    type = string
+    description = "The GCP project ID"
+    type        = string
 }
 
+
 variable "region" {
+    description = "The GCP region where the cluster resides"
     type = string
 }
 
@@ -99,4 +114,28 @@ variable "subnet_ip" {
 
 variable "zone" {
     type = string
+}
+
+variable "compute_arm_family" {
+    description = "The source arm image family prefix to be used by the compute node(s)"
+    type        = string
+    default     = "flux-fw-compute-arm64"
+}
+
+variable "compute_family" {
+    description = "The source image x86 prefix to be used by the compute node(s)"
+    type        = string
+    default     = "flux-fw-compute-x86-64"
+}
+
+variable "login_family" {
+    description = "The source image prefix to be used by the login node"
+    type        = string
+    default     = "flux-fw-login-x86-64"
+}
+
+variable "manager_family" {
+    description = "The source image prefix to be used by the manager"
+    type        = string
+    default     = "flux-fw-manager"
 }

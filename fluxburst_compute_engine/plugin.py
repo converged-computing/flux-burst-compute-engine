@@ -60,10 +60,12 @@ class BurstParameters:
     # API scopes for the manager (all of google cloud)
     manager_scopes: List = field(default_factory=lambda: ["cloud-platform"])
     manager_name_prefix: Optional[str] = "gffw"
+    manager_family: Optional[str] = "flux-fw-manager-x86-64"
 
     # Login node specs
     login_scopes: List = field(default_factory=lambda: ["cloud-platform"])
     login_name_prefix: Optional[str] = "gffw-login"
+    login_family: Optional[str] = "flux-fw-login-x86-64"
     login_machine_arch: Optional[str] = "x86-64"
     login_machine_type: Optional[str] = "e2-standard-4"
     login_count: Optional[int] = 1
@@ -79,6 +81,7 @@ class BurstParameters:
     compute_machine_type: Optional[str] = "c2-standard-8"
     compute_count: Optional[int] = 1
     compute_boot_script: Optional[str] = None
+    compute_family: Optional[str] = "flux-fw-compute-x86-64"
 
     # Compact mode
     compute_compact: Optional[bool] = False
@@ -138,28 +141,31 @@ class FluxBurstComputeEngine(BurstPlugin):
             self.params.terraform_dir, self.params.terraform_plan_name, variables
         )
 
+        # Save tf object at cluster name, and in future we would check for it (and include size)
+        # Right now with the cluster_name parameter, we assume the creator is managing clusters
+        self.clusters[self.params.cluster_name] = tf
+
         # run init
         print(f"Running terraform init for plan {self.params.terraform_plan_name}...")
         retval, _, _ = tf.init(capture_output=False)
         if retval != 0:
             logger.exit(
-                "Error running terraform init for plan {self.params.terraform_plan_name} in {self.params.terraform_dir}, see output above."
+                f"Error running terraform init for plan {self.params.terraform_plan_name} in {self.params.terraform_dir}, see output above."
             )
 
-        # run plan
+        # run plan (this will return 2 since we don't set -out, which is fine for now)
         retval, _, _ = tf.plan(no_color=IsFlagged, refresh=False, capture_output=False)
-        if retval != 0:
-            logger.exit(
-                "Error running terraform plan {self.params.terraform_plan_name} in {self.params.terraform_dir}, see output above."
-            )
 
         # Approve and apply
-        # TODO we need to build the images again.
-        print(tf.apply(**{"auto-approve": True}))
+        # TODO add capture_output=False so we can see
+        retval, _, _ = tf.apply(skip_plan=True, capture_output=False)
+        if retval != 0:
+            logger.exit(
+                f"Error running terraform apply for plan {self.params.terraform_plan_name} in {self.params.terraform_dir}, see output above."
+            )
 
         # TODO we need to store this as a named cluster under self.clusters
         # TODO if this is an external burst (and the broker does not connect) we need a way to submit jobs
-
         # TODO This assumes submitting all jobs to the cluster we just created
         for _, job in self.jobs.items():
             print("TODO: if external/isolated, need way to submit")
@@ -229,20 +235,21 @@ class FluxBurstComputeEngine(BurstPlugin):
         """
         Cleanup (delete) one or more clusters
         """
-        print("CLEANUP")
-        import IPython
-
-        IPython.embed()
-        import sys
-
-        sys.exit()
-
         if name and name not in self.clusters:
             raise ValueError(f"{name} is not a known cluster.")
         clusters = self.clusters if not name else {"name": self.clusters["name"]}
-        for cluster_name, _ in clusters.items():
+        for cluster_name, tf in clusters.items():
             logger.info(f"Cleaning up {cluster_name}")
-            print("TODO need to run terraform delete")
+
+            # Workaround that there is no force added here
+            # https://github.com/beelit94/python-terraform/blob/99950cb03c37abadb0d7e136452e43f4f17dd4e1/python_terraform/__init__.py#L129
+            options = tf._generate_default_options({})
+            args = tf._generate_default_args(None)
+            retval, _, _ = tf.cmd("destroy", *args, **options)
+            if retval != 0:
+                logger.warning(
+                    f"Error destroying plan {self.params.terraform_plan_name} in {self.params.terraform_dir}, check Google Cloud console."
+                )
 
         # Update known clusters
         self.refresh_clusters(clusters)

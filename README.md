@@ -6,11 +6,13 @@ Tutorials are available under the [flux operator](https://github.com/flux-framew
 
 ![https://raw.githubusercontent.com/converged-computing/flux-burst/main/docs/assets/img/logo.png](https://raw.githubusercontent.com/converged-computing/flux-burst/main/docs/assets/img/logo.png)
 
-Note that this plugin requires *terraform* to be installed.
-See the [example](example) directory for a mock example to burst an isolated cluster.
+## Usage
+
+ - This plugin requires *terraform* to be installed.
+ - You should build [these machine images](https://github.com/GoogleCloudPlatform/scientific-computing-examples/tree/main/fluxfw-gcp/img) for your project first.
+ - See the [example](example) directory for a mock example to burst an isolated cluster.
 
 **under development** this is not ready for usage!
-
 
 ## License
 

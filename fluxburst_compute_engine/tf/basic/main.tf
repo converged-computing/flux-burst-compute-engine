@@ -29,14 +29,18 @@ module "cluster" {
         mountpoint = "/home"
         share      = "${module.nfs_server_instance.instances_details.0.network_interface.0.network_ip}:/var/nfs/home"
     }
+
     broker_config        = var.broker_config
     manager_name_prefix  = var.manager_name_prefix
     manager_machine_type = var.manager_machine_type
+    manager_family       = var.manager_family
     manager_scopes       = var.manager_scopes
 
+    login_family         = var.login_family
     login_node_specs     = var.login_node_specs
     login_scopes         = var.login_scopes
 
+    compute_family       = var.compute_family
     compute_node_specs   = var.compute_node_specs
     compute_scopes       = var.compute_scopes
 }
