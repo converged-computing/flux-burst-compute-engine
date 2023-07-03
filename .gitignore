@@ -1,0 +1,14 @@
+bin/
+lib/
+*.db
+flux_burst_compute_engine.egg-info
+env
+.env
+apigen/_build
+build
+docs/_build
+release
+dist/
+__pycache__
+*.img
+/.eggs
