@@ -3,7 +3,6 @@
 import argparse
 import os
 import sys
-import time
 
 from fluxburst.client import FluxBurst
 
@@ -68,11 +67,13 @@ def main():
     # returned, maybe to do something with?
     unmatched = client.run_burst()
     assert not unmatched
-    print("Sleeping for a few minutes so you can look around...")
-    time.sleep(360)
+    plugin = client.plugins["compute_engine"]
+    print(
+        f"Terraform configs and working directory are found at {plugin.params.terraform_dir}"
+    )
+    input("Press Enter to when you are ready to destroy...")
 
     # Get a handle to the plugin so we can cleanup!
-    plugin = client.plugins["compute_engine"]
     plugin.cleanup()
 
 

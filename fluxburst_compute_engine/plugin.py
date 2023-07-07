@@ -243,7 +243,7 @@ class FluxBurstComputeEngine(BurstPlugin):
 
             # Workaround that there is no force added here
             # https://github.com/beelit94/python-terraform/blob/99950cb03c37abadb0d7e136452e43f4f17dd4e1/python_terraform/__init__.py#L129
-            options = tf._generate_default_options({})
+            options = tf._generate_default_options({"capture_output": False})
             args = tf._generate_default_args(None)
             args.append("-auto-approve")
             retval, _, _ = tf.cmd("destroy", *args, **options)

@@ -14,6 +14,10 @@ Tutorials are available under the [flux operator](https://github.com/flux-framew
 
 **under development** this is not ready for usage!
 
+## TODO
+
+create separate repo for our terraform configs, so we can update the build and remove arm!
+
 ## License
 
 HPCIC DevTools is distributed under the terms of the MIT license.

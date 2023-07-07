@@ -13,8 +13,7 @@
 # limitations under the License.
 
 module "cluster" {
-    source = "github.com/researchapps/scientific-computing-examples//fluxfw-gcp/tf?ref=custom-broker-config"
-
+    source = "github.com/converged-computing/flux-terraform-gcp//tf"
     project_id           = var.project_id
     region               = var.region
 
@@ -30,17 +29,30 @@ module "cluster" {
         share      = "${module.nfs_server_instance.instances_details.0.network_interface.0.network_ip}:/var/nfs/home"
     }
 
-    broker_config        = var.broker_config
     manager_name_prefix  = var.manager_name_prefix
     manager_machine_type = var.manager_machine_type
-    manager_family       = var.manager_family
     manager_scopes       = var.manager_scopes
+    manager_family       = var.manager_family
 
-    login_family         = var.login_family
-    login_node_specs     = var.login_node_specs
-    login_scopes         = var.login_scopes
+    login_node_specs = var.login_node_specs
+    login_scopes     = var.login_scopes
+    login_family     = var.login_family
 
-    compute_family       = var.compute_family
-    compute_node_specs   = var.compute_node_specs
-    compute_scopes       = var.compute_scopes
+    compute_node_specs = var.compute_node_specs
+    compute_scopes     = var.compute_scopes
+    compute_family     = var.compute_family
+
+    #broker_config        = var.broker_config
+    #manager_name_prefix  = var.manager_name_prefix
+    #manager_machine_type = var.manager_machine_type
+    #manager_family       = var.manager_family
+    #manager_scopes       = var.manager_scopes
+
+    #login_family         = var.login_family
+    #login_node_specs     = var.login_node_specs
+    #login_scopes         = var.login_scopes
+
+    #compute_family       = var.compute_family
+    #compute_node_specs   = var.compute_node_specs
+    #compute_scopes       = var.compute_scopes
 }
