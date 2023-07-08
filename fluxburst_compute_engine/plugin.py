@@ -3,15 +3,18 @@
 #
 # SPDX-License-Identifier: (MIT)
 
+import base64
 import os
 import tempfile
 from dataclasses import dataclass, field
 from typing import List, Optional
 
+import fluxburst.utils as utils
 from fluxburst.logger import logger
 from fluxburst.plugins import BurstPlugin
 from python_terraform import IsFlagged
 
+import fluxburst_compute_engine.templates as templates
 import fluxburst_compute_engine.terraform as terraform
 
 
@@ -40,17 +43,21 @@ class BurstParameters:
     # Lead broker service port (e.g, 30093)
     lead_port: Optional[str] = None
 
-    # Lead broker size
-    lead_size: Optional[str] = None
+    # Host names on the main cluster excluding the lead_host
+    # and additional login hosts. E.g.,
+    # gffw-login-001,gffw-compute-a-[001-004]
+    lead_hostnames: Optional[str] = None
 
     # Directory to init / install terraform modules
     # If not set, defaults to temporary directory
-    terraform_dir: Optional[str] = "/tmp/tmplwvbme2s"
+    terraform_dir: Optional[str] = None
 
-    # Custom broker config toml template for bursted cluster
+    # Custom broker config / curve certs for bursted cluster
     broker_config: Optional[str] = None
+    curve_cert: Optional[str] = None
+    munge_key: Optional[str] = None
 
-    # Name of the terraform plan to use under tf
+    # Name of the terraform plan to use under tf. If bursting, we use bursted
     terraform_plan_name: Optional[str] = "basic"
     cluster_name: Optional[str] = "flux-bursted-cluster"
 
@@ -79,7 +86,6 @@ class BurstParameters:
     compute_name_prefix: Optional[str] = "gffw-compute-a"
     compute_machine_arch: Optional[str] = "x86-64"
     compute_machine_type: Optional[str] = "c2-standard-8"
-    compute_count: Optional[int] = 1
     compute_boot_script: Optional[str] = None
     compute_family: Optional[str] = "flux-fw-compute-x86-64"
 
@@ -100,40 +106,95 @@ class BurstParameters:
     # arguments to flux wrap, e.g., "strace,-e,network,-tt
     wrap: Optional[str] = None
 
-    # Name of a secret to be made in the same namespace
-    munge_secret_name: Optional[str] = "munge-key"
-
-    # Path to munge.key file (local) to use to create config map
-    # If this is owned by root, likely won't be readable
-    munge_key: Optional[str] = "/etc/munge/munge.key"
-
-    # curve secret name to do the same for
-    curve_cert_secret_name: Optional[str] = "curve-cert"
-
-    # Path to curve.cert
-    curve_cert: Optional[str] = "/mnt/curve/curve.cert"
-
 
 class FluxBurstComputeEngine(BurstPlugin):
     # Set our custom dataclass, otherwise empty
     _param_dataclass = BurstParameters
 
-    def run(self):
+    def generate_hostlist_range(self, size):
+        """
+        Generate the range for the hostlist (e.g., [0-2])
+        """
+        if size == 1:
+            return "0"
+        return f"0-{size-1}"
+
+    def generate_bursted_boot_script(self, hosts):
+        """
+        Generate a bursted broked config.
+        """
+        template = templates.bursting_boot_script
+        curve_cert = utils.read_file(self.params.curve_cert)
+        with open(self.params.munge_key, "rb") as fd:
+            content = fd.read()
+        bytes_string = base64.b64encode(content).decode("utf-8")
+
+        # We call this a poor man's jinja2!
+        replace = {
+            "NODELIST": hosts,
+            "CURVECERT": curve_cert,
+            "MUNGEKEY": bytes_string,
+            "LEAD_BROKER_ADDRESS": self.params.lead_host,
+            "LEAD_BROKER_PORT": str(self.params.lead_port),
+        }
+        for key, value in replace.items():
+            template = template.replace(key, value)
+
+        # Write to temporary file, and return
+        self.params.compute_boot_script = template
+
+    def generate_resource_hostlist(self):
+        """
+        Generate the hostlist for the resource spec and the broker.toml.
+
+        The hostnames need to line up, index wise, for the bursting to work.
+        Unlike the Flux Operator, here we expected the user of the plugin
+        to define the full hostnames for the bursted clusters.
+        """
+        # hosts are the lead broker address plus the original node names.
+        # TODO need to have NODELIST just be here
+        # hosts = [{ host = "gffw-manager-001,gffw-login-001,gffw-compute-a-[001-004]" },]
+        # Except gffw-manager-001 should be an ip address (typically)
+        return f"{self.params.lead_host},{self.params.lead_hostnames}"
+
+    def run(self, request_burst=False, nodes=None, tasks=None):
         """
         Given some set of scheduled jobs, run bursting.
         """
         # Exit early if no jobs to burst
-        if not self.jobs:
+        if not self.jobs and not request_burst:
             logger.info(f"Plugin {self.name} has no jobs to burst.")
             return
 
-        # For now, assuming one burst will be done to run all jobs,
-        # we just get the max size. This is obviously not ideal
-        node_count = max([v["nnodes"] for _, v in self.jobs.items()])
+        # If we have requested a burst, nodes are required
+        if request_burst and not nodes:
+            logger.warning("Burst requests require nodes and tasks.")
+            return
+
+        # If we don't have an isolated burst, generate a broker config
+        broker_config = self.params.broker_config
+        hosts = None
+        if not self.params.isolated_burst:
+            hosts = self.generate_resource_hostlist()
+            self.generate_bursted_boot_script(hosts)
+
+        # Request a burst with some number of nodes and tasks, vs. derive from jobs
+        if request_burst:
+            node_count = nodes
+        else:
+            # For now, assuming one burst will be done to run all jobs,
+            # we just get the max size. This is obviously not ideal
+            node_count = max([v["nnodes"] for _, v in self.jobs.items()])
+
+        # The terraform recipe allows running jobs on login + compute, so that needs to == node_count
+        compute_nodes_needed = node_count - self.params.login_count
 
         # Prepare variables for the plan
         # We assume for now they take the same variables. This could change.
-        variables = terraform.generate_variables(self.params, node_count)
+        # The total node count should be == login +
+        variables = terraform.generate_variables(
+            self.params, compute_nodes_needed, broker_config, resource_hosts=hosts
+        )
 
         # Get the desired terraform config (defaults to basic)
         # These commands assume terraform is installed, likely we need to check for this
@@ -145,6 +206,10 @@ class FluxBurstComputeEngine(BurstPlugin):
         # Right now with the cluster_name parameter, we assume the creator is managing clusters
         self.clusters[self.params.cluster_name] = tf
 
+        import IPython
+
+        IPython.embed()
+        sys.exit()
         # run init
         print(f"Running terraform init for plan {self.params.terraform_plan_name}...")
         retval, _, _ = tf.init(capture_output=False)
@@ -153,8 +218,12 @@ class FluxBurstComputeEngine(BurstPlugin):
                 f"Error running terraform init for plan {self.params.terraform_plan_name} in {self.params.terraform_dir}, see output above."
             )
 
-        # run plan (this will return 2 since we don't set -out, which is fine for now)
-        retval, _, _ = tf.plan(no_color=IsFlagged, refresh=False, capture_output=False)
+        # We don't check output here because it seems to always return 2
+        # Save the plan file in case
+        outfile = os.path.join(tf.working_dir, "tfplan")
+        retval, _, _ = tf.plan(
+            no_color=IsFlagged, refresh=False, capture_output=False, out=outfile
+        )
 
         # Approve and apply
         # TODO add capture_output=False so we can see
@@ -164,11 +233,10 @@ class FluxBurstComputeEngine(BurstPlugin):
                 f"Error running terraform apply for plan {self.params.terraform_plan_name} in {self.params.terraform_dir}, see output above."
             )
 
-        # TODO we need to store this as a named cluster under self.clusters
-        # TODO if this is an external burst (and the broker does not connect) we need a way to submit jobs
-        # TODO This assumes submitting all jobs to the cluster we just created
-        for _, job in self.jobs.items():
-            print("TODO: if external/isolated, need way to submit")
+        # TODO if an isolated burst, we need a way to iterate / submit jobs
+        # A connected burst will receive them from the lead broker
+        # for _, job in self.jobs.items():
+        #    print("TODO: if external/isolated, need way to submit")
 
     def validate_params(self):
         """
@@ -182,20 +250,38 @@ class FluxBurstComputeEngine(BurstPlugin):
         if not self.params.terraform_dir:
             self.params.terraform_dir = tempfile.mkdtemp()
 
-        if self.params.isolated_burst and (
-            not self.params.lead_host
-            or not self.params.lead_port
-            or not self.params.lead_size
-        ):
-            logger.error(
-                "A non-isolated burst should have lead host, port, and size defined."
-            )
+        # If it's an isolated burst, use the burst terraform configs
+        if not self.params.isolated_burst:
+            self.params.terraform_plan_name = "burst"
+
+        if self.params.munge_key and not os.path.exists(self.params.munge_key):
+            logger.error(f"Munge key {self.params.munge_key} does not exist.")
             return False
+
+        if self.params.curve_cert and not os.path.exists(self.params.curve_cert):
+            logger.error(f"Curve certificate {self.params.curve_cert} does not exist.")
+            return False
+
+        # Isolated burst means not connecting two clusters
+        # A non isolated burst requires metadata about local and remote cluster!
+        if not self.params.isolated_burst:
+            # This is the metadata we need about the local cluster
+            if (
+                not self.params.lead_host
+                or not self.params.lead_port
+                or not self.params.lead_hostnames
+                or not self.params.curve_cert
+                or not self.params.munge_key
+            ):
+                logger.error(
+                    "A non-isolated burst should have lead host, port, hostnames, curve cert, and munge key defined."
+                )
+                return False
 
         # Boot scripts, if provided, must exist
         for script in [self.params.login_boot_script, self.params.compute_boot_script]:
             if script and not os.path.exists(script):
-                logger.error("Boot script {script} does not exist.")
+                logger.error(f"Boot script {script} does not exist.")
                 return False
 
         return True

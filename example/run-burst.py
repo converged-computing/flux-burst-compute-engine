@@ -37,7 +37,7 @@ def main():
 
     # Create the dataclass for the plugin config
     # We use a dataclass because it does implicit validation of required params, etc.
-    params = BurstParameters(project=args.project)
+    params = BurstParameters(project=args.project, isolated_burst=True)
 
     # Create a mock flux burst client. This will return a fake burstable job
     client = FluxBurst(mock=True)
@@ -64,7 +64,9 @@ def main():
     # Now let's run the burst! The active plugins will determine if they
     # are able to schedule a job, and if so, will do the work needed to
     # burst. unmatched jobs (those we weren't able to schedule) are
-    # returned, maybe to do something with?
+    # returned, maybe to do something with? Note that the default mock
+    # generates a N=4 job. For compute engine that will be 3 compute
+    # nodes and 1 login node.
     unmatched = client.run_burst()
     assert not unmatched
     plugin = client.plugins["compute_engine"]

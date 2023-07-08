@@ -3,6 +3,7 @@
 #
 # SPDX-License-Identifier: (MIT)
 
+import base64
 import os
 import shutil
 
@@ -15,7 +16,37 @@ here = os.path.dirname(os.path.abspath(__file__))
 recipes = os.path.join(here, "tf")
 
 
-def generate_variables(params, node_count):
+def generate_bursted_variables(
+    params, compute_nodes_needed, broker_config=None, resource_hosts=None
+):
+    """
+    Generate bursted variables (and a startup script) for a bursted cluster.
+    """
+    compute_node_specs = {
+        "name_prefix": params.compute_name_prefix,
+        "machine_arch": params.compute_machine_arch,
+        "machine_type": params.compute_machine_type,
+        "instances": compute_nodes_needed,
+        "properties": [],
+        "gpu_count": params.gpu_count,
+        "gpu_type": params.gpu_type,
+        "compact": params.compute_compact,
+        "boot_script": params.compute_boot_script,
+    }
+    return {
+        "project_id": params.project,
+        "network_name": params.network_name,
+        "region": params.region,
+        "zone": params.zone,
+        "compute_node_specs": [compute_node_specs],
+        "compute_scopes": params.compute_scopes,
+        "compute_family": params.compute_family,
+    }
+
+
+def generate_variables(
+    params, compute_nodes_needed, broker_config=None, resource_hosts=None
+):
     """
     Given params from the burst plugin, generate terraform variables.
     """
@@ -39,6 +70,11 @@ def generate_variables(params, node_count):
         )
         params.compute_boot_script = default_boot_script
 
+    if params.terraform_plan_name == "burst":
+        return generate_bursted_variables(
+            params, compute_nodes_needed, broker_config=None, resource_hosts=None
+        )
+
     login_node_specs = {
         "name_prefix": params.login_name_prefix,
         "machine_arch": params.login_machine_arch,
@@ -52,12 +88,12 @@ def generate_variables(params, node_count):
         "name_prefix": params.compute_name_prefix,
         "machine_arch": params.compute_machine_arch,
         "machine_type": params.compute_machine_type,
-        "instances": node_count,
+        "instances": compute_nodes_needed,
         "properties": [],
         "gpu_count": params.gpu_count,
         "gpu_type": params.gpu_type,
         "compact": params.compute_compact,
-        "boot_script": params.login_boot_script,
+        "boot_script": params.compute_boot_script,
     }
     variables = {
         "project_id": params.project,
@@ -76,9 +112,21 @@ def generate_variables(params, node_count):
         "compute_family": params.compute_family,
         "login_family": params.login_family,
     }
-    # If we have a custom broker config, use it.
-    if params.broker_config:
-        variables["broker_config"] = params.broker_config
+    # If we have a custom broker config, curve cert, or munge key, use them.
+    # Note this currently doesn't have a strong use case and I'm thinking
+    # of removing it
+    if broker_config:
+        variables["broker_config"] = broker_config
+    if resource_hosts:
+        variables["resource_hosts"] = resource_hosts
+    if params.curve_cert:
+        with open(params.curve_cert, "r") as fd:
+            variables["curve_cert"] = fd.read()
+    if params.munge_key:
+        with open(params.munge_key, "rb") as fd:
+            content = fd.read()
+        bytes_string = base64.b64encode(content).decode("utf-8")
+        variables["munge_key"] = bytes_string
     return variables
 
 
