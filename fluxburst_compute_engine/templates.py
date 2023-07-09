@@ -167,6 +167,7 @@ cat << "START_FLUX_SCRIPT" > /etc/flux/manager/first-boot.sh
 
 STATE_DIR=/var/lib/flux
 fluxroot=/usr
+export PATH=${fluxroot}/bin:$PATH
 
 # Broker Options: important!
 # TODO newer flux will not have quorum=ranks, but rather -Sbroker.quorum=2 (size)
