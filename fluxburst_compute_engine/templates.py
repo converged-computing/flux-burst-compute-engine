@@ -3,7 +3,6 @@
 #
 # SPDX-License-Identifier: (MIT)
 
-
 bursting_boot_script = """#!/bin/sh
 
 set -eEu -o pipefail
