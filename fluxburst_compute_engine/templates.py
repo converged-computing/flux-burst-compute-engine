@@ -122,15 +122,25 @@ with open(dest, 'wb') as fd:
     fd.write(base64.b64decode(encoded))
 PYTHON_DECODING_SCRIPT
 
+cat << "PYTHON_DECODING_SCRIPT" > /tmp/convert_curve_cert.py
+#!/usr/bin/env python3
+
+import sys
+import base64
+
+string = sys.argv[1]
+dest = sys.argv[2]
+with open(dest, 'wb') as fd:
+    fd.write(base64.b64decode(string).decode('utf-8'))
+PYTHON_DECODING_SCRIPT
+
 mkdir -p /etc/munge
 rm -rf /etc/munge/munge.key
 python3 /tmp/convert_munge_key.py "MUNGEKEY" /etc/munge/munge.key
+python3 /tmp/convert_curve_cert.py "CURVECERT" /tmp/curve.cert
+
 chmod u=r,g=,o= /etc/munge/munge.key
 chown munge:munge /etc/munge/munge.key
-
-cat <<EOT >> /tmp/curve.cert
-CURVECERT
-EOT
 
 mv /tmp/curve.cert /usr/local/etc/flux/system/curve.cert
 chmod u=r,g=,o= /usr/local/etc/flux/system/curve.cert

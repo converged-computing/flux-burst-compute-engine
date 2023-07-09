@@ -129,18 +129,19 @@ class FluxBurstComputeEngine(BurstPlugin):
             content = fd.read()
         bytes_string = base64.b64encode(content).decode("utf-8")
 
+        # Also encode curve-cert in case there are illegal characters
+        encoded_curve = base64.b64encode(curve_cert.encode("utf-8")).decode("utf-8")
+
         # We call this a poor man's jinja2!
         replace = {
             "NODELIST": hosts,
-            "CURVECERT": curve_cert,
+            "CURVECERT": encoded_curve,
             "MUNGEKEY": bytes_string,
             "LEAD_BROKER_ADDRESS": self.params.lead_host,
             "LEAD_BROKER_PORT": str(self.params.lead_port),
         }
         for key, value in replace.items():
             template = template.replace(key, value)
-
-        # Write to temporary file, and return
         self.params.compute_boot_script = template
 
     def generate_resource_hostlist(self):
