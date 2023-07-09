@@ -164,8 +164,6 @@ cat << "START_FLUX_SCRIPT" > /etc/flux/manager/first-boot.sh
 #!/bin/sh
 
 STATE_DIR=/var/lib/flux
-fluxuser=flux
-asFlux="sudo -u ${fluxuser} -E HOME=/home/${fluxuser} -E PATH=$PATH"
 
 # Broker Options: important!
 # TODO newer flux will not have quorum=ranks, but rather -Sbroker.quorum=2 (size)
@@ -184,7 +182,7 @@ brokerOptions="-Scron.directory=/usr/local/etc/flux/system/conf.d \
 echo "🌀 flux start -o --config /usr/local/etc/flux/system/conf.d ${brokerOptions}"
 while true
     do
-    ${asFlux} /usr/local/bin/flux start -o --config /usr/local/etc/flux/system/conf.d ${brokerOptions}
+    /usr/local/bin/flux start -o --config /usr/local/etc/flux/system/conf.d ${brokerOptions}
     retval=$?
     echo "Return value for follower worker is ${retval}"
     if [[ "${retval}" -eq 0 ]]; then
@@ -209,6 +207,8 @@ Type=oneshot
 ExecStart=/etc/flux/manager/first-boot.sh
 ExecStartPost=/usr/bin/touch /var/lib/flux-configured
 RemainAfterExit=yes
+User=flux
+Group=flux
 
 [Install]
 WantedBy=multi-user.target
