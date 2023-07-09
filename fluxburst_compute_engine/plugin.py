@@ -206,10 +206,6 @@ class FluxBurstComputeEngine(BurstPlugin):
         # Right now with the cluster_name parameter, we assume the creator is managing clusters
         self.clusters[self.params.cluster_name] = tf
 
-        import IPython
-
-        IPython.embed()
-        sys.exit()
         # run init
         print(f"Running terraform init for plan {self.params.terraform_plan_name}...")
         retval, _, _ = tf.init(capture_output=False)
