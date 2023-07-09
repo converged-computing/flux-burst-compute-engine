@@ -176,7 +176,6 @@ brokerOptions="-Scron.directory=${fluxroot}/etc/flux/system/conf.d \
   -Sstatedir=${STATE_DIR} \
   -Slocal-uri=local:///run/flux/local \
   -Stbon.connect_timeout=5s \
-  -Sbroker.quorum=0-1 \
   -Stbon.zmqdebug=1 \
   -Slog-stderr-level=7  \
   -Slog-stderr-mode=local"
