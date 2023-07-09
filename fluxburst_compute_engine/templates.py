@@ -124,13 +124,12 @@ PYTHON_DECODING_SCRIPT
 
 cat << "PYTHON_DECODING_SCRIPT" > /tmp/convert_curve_cert.py
 #!/usr/bin/env python3
-
 import sys
 import base64
 
 string = sys.argv[1]
 dest = sys.argv[2]
-with open(dest, 'wb') as fd:
+with open(dest, 'w') as fd:
     fd.write(base64.b64decode(string).decode('utf-8'))
 PYTHON_DECODING_SCRIPT
 
@@ -150,6 +149,7 @@ service munge start > /dev/null 2>&1
 # The rundir needs to be created first, and owned by user flux
 # Along with the state directory and curve certificate
 mkdir -p /run/flux
+sudo chown -R ${fluxuser}:${fluxuser} /run/flux
 
 # Remove group and other read
 chmod o-r /usr/local/etc/flux/system/curve.cert
@@ -164,6 +164,8 @@ cat << "START_FLUX_SCRIPT" > /etc/flux/manager/first-boot.sh
 #!/bin/sh
 
 STATE_DIR=/var/lib/flux
+fluxuser=flux
+asFlux="sudo -u ${fluxuser} -E HOME=/home/${fluxuser} -E PATH=$PATH"
 
 # Broker Options: important!
 # TODO newer flux will not have quorum=ranks, but rather -Sbroker.quorum=2 (size)
@@ -179,7 +181,7 @@ brokerOptions="-Scron.directory=/usr/local/etc/flux/system/conf.d \
   -Slog-stderr-mode=local"
 
 # Sleep until the broker is ready
-printf "\n🌀 flux start -o --config /usr/local/etc/flux/system/conf.d ${brokerOptions}\n"
+echo "🌀 flux start -o --config /usr/local/etc/flux/system/conf.d ${brokerOptions}"
 while true
     do
     ${asFlux} /usr/local/bin/flux start -o --config /usr/local/etc/flux/system/conf.d ${brokerOptions}
@@ -194,10 +196,10 @@ while true
 done
 START_FLUX_SCRIPT
 
+chmod +x /etc/flux/manager/first-boot.sh
+
 cat << "FIRST_BOOT_UNIT" > /etc/systemd/system/flux-start.service
 [Unit]
-Wants=systemd-hostnamed
-After=systemd-hostnamed
 Wants=network-online.target
 After=network-online.target
 ConditionPathExists=!/var/lib/flux-configured
@@ -213,4 +215,5 @@ WantedBy=multi-user.target
 FIRST_BOOT_UNIT
 
 systemctl enable flux-start.service
+systemctl start flux-start.service
 """
