@@ -53,15 +53,15 @@ flux R encode --hosts=NODELIST --local > ${fluxroot}/etc/flux/system/R
 printf "\n📦 Resources\n"
 cat ${fluxroot}/etc/flux/system/R
 
-mkdir -p ${fluxroot}/etc/flux/imp/conf.d/
-cat <<EOT >> ${fluxroot}/etc/flux/imp/conf.d/imp.toml
+mkdir -p /etc/flux/imp/conf.d/
+cat <<EOT >> /etc/flux/imp/conf.d/imp.toml
 [exec]
 allowed-users = [ "${fluxuser}", "root" ]
 allowed-shells = [ "${fluxroot}/libexec/flux/flux-shell" ]
 EOT
 
 printf "\n🦊 Independent Minister of Privilege\n"
-cat ${fluxroot}/etc/flux/imp/conf.d/imp.toml
+cat /etc/flux/imp/conf.d/imp.toml
 
 cat <<EOT >> /tmp/system.toml
 [exec]
@@ -108,7 +108,7 @@ cat ${fluxroot}/etc/flux/system/conf.d/system.toml
 # If we are communicating via the flux uri this service needs to be started
 chmod u+s ${fluxroot}/libexec/flux/flux-imp
 chmod 4755 ${fluxroot}/libexec/flux/flux-imp
-chmod 0644 ${fluxroot}/etc/flux/imp/conf.d/imp.toml
+chmod 0644 /etc/flux/imp/conf.d/imp.toml
 sudo chown -R ${fluxuser}:${fluxuser} ${fluxroot}/etc/flux/system/conf.d
 
 cat << "PYTHON_DECODING_SCRIPT" > /tmp/convert_munge_key.py
