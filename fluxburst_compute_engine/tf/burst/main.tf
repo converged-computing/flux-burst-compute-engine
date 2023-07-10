@@ -13,7 +13,7 @@
 # limitations under the License.
 
 module "cluster" {
-    source = "github.com/converged-computing/flux-terraform-gcp//burst?ref=test-bursted"
+    source = "github.com/converged-computing/flux-terraform-gcp//burst"
     project_id           = var.project_id
     region               = var.region
 
