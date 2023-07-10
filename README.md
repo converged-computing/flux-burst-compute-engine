@@ -9,14 +9,16 @@ Tutorials are available under the [flux operator](https://github.com/flux-framew
 ## Usage
 
  - This plugin requires *terraform* to be installed.
- - You should build [these machine images](https://github.com/GoogleCloudPlatform/scientific-computing-examples/tree/main/fluxfw-gcp/img) for your project first.
- - See the [example](example) directory for a mock example to burst an isolated cluster.
+ - For a local (not connected burst) you can use build [these images](https://github.com/converged-computing/flux-terraform-gcp/tree/main/build-images/basic) with `make` for your Google project.
+ - For a connected burst, use the same directory, but run `make bursted`
+ - See the [example alongside the Flux Operator](https://github.com/flux-framework/flux-operator/tree/main/examples/experimental/bursting/broker-compute-engine) for bursting from GKE to Compute Engine.
+ - Isolated bursts are not fully supported yet - the image needs to be refactored.
 
-**under development** this is not ready for usage!
+If you are connecting clusters, they need to be compatible! See [the notes here](https://gist.github.com/vsoch/1801ffcba1eda5ca6ea65e03f9b5fa6c).
 
 ## TODO
 
-create separate repo for our terraform configs, so we can update the build and remove arm!
+ - We likely want to be able to handle different operating systems -  right now the burst is setup for Rocky Linux.
 
 ## License
 

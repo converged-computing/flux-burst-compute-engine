@@ -53,50 +53,27 @@ class BurstParameters:
     terraform_dir: Optional[str] = None
 
     # Custom broker config / curve certs for bursted cluster
-    broker_config: Optional[str] = None
     curve_cert: Optional[str] = None
     munge_key: Optional[str] = None
 
-    # Name of the terraform plan to use under tf. If bursting, we use bursted
-    terraform_plan_name: Optional[str] = "basic"
+    # Name of the terraform plan to use under tf.
+    terraform_plan_name: Optional[str] = "burst"
     cluster_name: Optional[str] = "flux-bursted-cluster"
-
-    # This is used for the manager node
-    manager_machine_type: Optional[str] = "e2-standard-8"
-
-    # API scopes for the manager (all of google cloud)
-    manager_scopes: List = field(default_factory=lambda: ["cloud-platform"])
-    manager_name_prefix: Optional[str] = "gffw"
-    manager_family: Optional[str] = "flux-fw-manager-x86-64"
-
-    # Login node specs
-    login_scopes: List = field(default_factory=lambda: ["cloud-platform"])
-    login_name_prefix: Optional[str] = "gffw-login"
-    login_family: Optional[str] = "flux-fw-login-x86-64"
-    login_machine_arch: Optional[str] = "x86-64"
-    login_machine_type: Optional[str] = "e2-standard-4"
-    login_count: Optional[int] = 1
-    login_boot_script: Optional[str] = None
-
-    # If this isn't set, each template can define a custom one
-    login_boot_script: Optional[str] = None
 
     # Compute node specs
     compute_scopes: List = field(default_factory=lambda: ["cloud-platform"])
     compute_name_prefix: Optional[str] = "gffw-compute-a"
     compute_machine_arch: Optional[str] = "x86-64"
     compute_machine_type: Optional[str] = "c2-standard-8"
-    compute_boot_script: Optional[str] = None
-    compute_family: Optional[str] = "flux-fw-compute-x86-64"
+    compute_family: Optional[str] = "flux-bursted-compute-x86-64"
 
     # Compact mode
     compute_compact: Optional[bool] = False
 
-    # GPUS (not tested)
+    # GPUS (not added yet)
     gpu_type: Optional[str] = None
     gpu_count: Optional[int] = 0
 
-    # NOT USED OR TESTED/IMPLEMENTED YET
     # Flux log level
     log_level: Optional[int] = 7
 
@@ -124,21 +101,63 @@ class FluxBurstComputeEngine(BurstPlugin):
         Generate a bursted broked config.
         """
         template = templates.bursting_boot_script
-        curve_cert = utils.read_file(self.params.curve_cert)
         with open(self.params.munge_key, "rb") as fd:
             content = fd.read()
         bytes_string = base64.b64encode(content).decode("utf-8")
 
         # Also encode curve-cert in case there are illegal characters
-        encoded_curve = base64.b64encode(curve_cert.encode("utf-8")).decode("utf-8")
+        curve_cert = self.load_encoded_curve_cert()
 
         # We call this a poor man's jinja2!
         replace = {
             "NODELIST": hosts,
-            "CURVECERT": encoded_curve,
+            "LOGLEVEL": str(self.params.log_level),
+            "CURVECERT": curve_cert,
             "MUNGEKEY": bytes_string,
             "LEAD_BROKER_ADDRESS": self.params.lead_host,
             "LEAD_BROKER_PORT": str(self.params.lead_port),
+        }
+        for key, value in replace.items():
+            template = template.replace(key, value)
+        self.params.compute_boot_script = template
+
+    def load_encoded_curve_cert(self):
+        """
+        Determine if we are given a path or string verbatim
+
+        Return encoded for the start script to handle.
+        """
+        curve_cert = self.params.curve_cert
+        if os.path.exists(curve_cert):
+            curve_cert = utils.read_file(self.params.curve_cert)
+        elif "public-key" not in curve_cert and "secret-key" not in curve_cert:
+            raise ValueError(
+                "Curve cert is either invalid (as string) or path does not exist."
+            )
+        return base64.b64encode(curve_cert.encode("utf-8")).decode("utf-8")
+
+    def generate_default_boot_script(self, node_count):
+        """
+        Generate a bursted broked config.
+        """
+        template = templates.default_boot_script
+
+        # Generate range of hosts, numbered 1-N
+        hostrange = "001"
+        if node_count > 1:
+            # zfill 3 will produce 4 -> 004
+            end = str(node_count).zfill(3)
+            hostrange = f"[001-{end}]"
+
+        # Default pattern of hostnames
+        hosts = f"{self.params.compute_name_prefix}-{hostrange}"
+        curve_cert = self.load_encoded_curve_cert()
+
+        # We call this a poor man's jinja2!
+        replace = {
+            "LOGLEVEL": str(self.params.log_level),
+            "NODELIST": hosts,
+            "CURVECERT": curve_cert,
         }
         for key, value in replace.items():
             template = template.replace(key, value)
@@ -162,6 +181,13 @@ class FluxBurstComputeEngine(BurstPlugin):
         """
         Given some set of scheduled jobs, run bursting.
         """
+        # Don't support this yet - not enough time to develop / ensure working
+        if self.params.isolated_burst:
+            logger.warning(
+                "Isolated burst is not fully tested yet, please open an issue if you want it."
+            )
+            return
+
         # Exit early if no jobs to burst
         if not self.jobs and not request_burst:
             logger.info(f"Plugin {self.name} has no jobs to burst.")
@@ -169,15 +195,8 @@ class FluxBurstComputeEngine(BurstPlugin):
 
         # If we have requested a burst, nodes are required
         if request_burst and not nodes:
-            logger.warning("Burst requests require nodes and tasks.")
+            logger.warning("Burst requests require a number of nodes.")
             return
-
-        # If we don't have an isolated burst, generate a broker config
-        broker_config = self.params.broker_config
-        hosts = None
-        if not self.params.isolated_burst:
-            hosts = self.generate_resource_hostlist()
-            self.generate_bursted_boot_script(hosts)
 
         # Request a burst with some number of nodes and tasks, vs. derive from jobs
         if request_burst:
@@ -187,15 +206,18 @@ class FluxBurstComputeEngine(BurstPlugin):
             # we just get the max size. This is obviously not ideal
             node_count = max([v["nnodes"] for _, v in self.jobs.items()])
 
-        # The terraform recipe allows running jobs on login + compute, so that needs to == node_count
-        compute_nodes_needed = node_count - self.params.login_count
+        # If we don't have an isolated burst, generate a broker config
+        hosts = None
+        if not self.params.isolated_burst:
+            hosts = self.generate_resource_hostlist()
+            self.generate_bursted_boot_script(hosts)
+        else:
+            self.generate_default_boot_script(node_count)
 
         # Prepare variables for the plan
         # We assume for now they take the same variables. This could change.
         # The total node count should be == login +
-        variables = terraform.generate_variables(
-            self.params, compute_nodes_needed, broker_config, resource_hosts=hosts
-        )
+        variables = terraform.generate_variables(self.params, node_count)
 
         # Get the desired terraform config (defaults to basic)
         # These commands assume terraform is installed, likely we need to check for this
@@ -230,11 +252,6 @@ class FluxBurstComputeEngine(BurstPlugin):
                 f"Error running terraform apply for plan {self.params.terraform_plan_name} in {self.params.terraform_dir}, see output above."
             )
 
-        # TODO if an isolated burst, we need a way to iterate / submit jobs
-        # A connected burst will receive them from the lead broker
-        # for _, job in self.jobs.items():
-        #    print("TODO: if external/isolated, need way to submit")
-
     def validate_params(self):
         """
         Validate parameters provided as BurstParameters.
@@ -255,10 +272,6 @@ class FluxBurstComputeEngine(BurstPlugin):
             logger.error(f"Munge key {self.params.munge_key} does not exist.")
             return False
 
-        if self.params.curve_cert and not os.path.exists(self.params.curve_cert):
-            logger.error(f"Curve certificate {self.params.curve_cert} does not exist.")
-            return False
-
         # Isolated burst means not connecting two clusters
         # A non isolated burst requires metadata about local and remote cluster!
         if not self.params.isolated_burst:
@@ -275,12 +288,7 @@ class FluxBurstComputeEngine(BurstPlugin):
                 )
                 return False
 
-        # Boot scripts, if provided, must exist
-        for script in [self.params.login_boot_script, self.params.compute_boot_script]:
-            if script and not os.path.exists(script):
-                logger.error(f"Boot script {script} does not exist.")
-                return False
-
+        # TODO we can add support for custom boot logic here
         return True
 
     def schedule(self, job):
