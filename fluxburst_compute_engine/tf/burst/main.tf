@@ -13,7 +13,7 @@
 # limitations under the License.
 
 module "cluster" {
-    source = "github.com/converged-computing/flux-terraform-gcp//tf?ref=test-bursted"
+    source = "github.com/converged-computing/flux-terraform-gcp//burst"
     project_id           = var.project_id
     region               = var.region
 
@@ -28,21 +28,7 @@ module "cluster" {
         mountpoint = "/home"
         share      = "${module.nfs_server_instance.instances_details.0.network_interface.0.network_ip}:/var/nfs/home"
     }
-
-    manager_name_prefix  = var.manager_name_prefix
-    manager_machine_type = var.manager_machine_type
-    manager_scopes       = var.manager_scopes
-    manager_family       = var.manager_family
-    broker_config        = var.broker_config
-    resource_hosts       = var.resource_hosts
-    curve_cert           = var.curve_cert
-    munge_key            = var.munge_key
-
-    login_node_specs = var.login_node_specs
-    login_scopes     = var.login_scopes
-    login_family     = var.login_family
-
     compute_node_specs = var.compute_node_specs
     compute_scopes     = var.compute_scopes
-    compute_family     = var.compute_family
+    family             = var.compute_family
 }
