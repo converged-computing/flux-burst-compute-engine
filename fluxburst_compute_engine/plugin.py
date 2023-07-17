@@ -102,7 +102,6 @@ class FluxBurstComputeEngine(BurstPlugin):
         """
         Generate a bursted broked config.
         """
-        template = templates.bursting_boot_script
         with open(self.params.munge_key, "rb") as fd:
             content = fd.read()
         bytes_string = base64.b64encode(content).decode("utf-8")
@@ -119,8 +118,7 @@ class FluxBurstComputeEngine(BurstPlugin):
             "LEAD_BROKER_ADDRESS": self.params.lead_host,
             "LEAD_BROKER_PORT": str(self.params.lead_port),
         }
-        for key, value in replace.items():
-            template = template.replace(key, value)
+        template = templates.get_script("burst_boot.sh", replace)
         self.params.compute_boot_script = template
 
     def load_encoded_curve_cert(self):
@@ -142,8 +140,6 @@ class FluxBurstComputeEngine(BurstPlugin):
         """
         Generate a bursted broked config.
         """
-        template = templates.default_boot_script
-
         # Generate range of hosts, numbered 1-N
         hostrange = "001"
         if node_count > 1:
@@ -161,8 +157,7 @@ class FluxBurstComputeEngine(BurstPlugin):
             "NODELIST": hosts,
             "CURVECERT": curve_cert,
         }
-        for key, value in replace.items():
-            template = template.replace(key, value)
+        template = templates.get_script("default_boot.sh", replace)
         self.params.compute_boot_script = template
 
     def generate_resource_hostlist(self):
