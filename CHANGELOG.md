@@ -14,6 +14,7 @@ and **Merged pull requests**. Critical items to know are:
 The versions coincide with releases on pip. Only major versions will be released as tags on Github.
 
 ## [0.0.x](https://github.com/converged-computing/flux-burst-compute-engine/tree/main) (0.0.x)
+ - ensure NFS is activated (0.0.13)
  - better organize templates to be bash scripts for readability (0.0.12)
  - add back isolated burst mode (0.0.11)
  - support for main purpose, connected burst (0.0.1)

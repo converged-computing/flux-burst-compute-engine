@@ -194,5 +194,16 @@ Delegate=yes
 WantedBy=multi-user.target
 FIRST_BOOT_UNIT
 
+# This enables NFS
+nfsmounts=$(curl "http://metadata.google.internal/computeMetadata/v1/instance/attributes/nfs-mounts" -H "Metadata-Flavor: Google")
+
+if [[ "X${nfsmounts}" != "X" ]]; then
+    share=$(echo $nfsmounts | jq -r '.share')
+    mountpoint=$(echo $nfsmounts | jq -r '.mountpoint')
+
+    bash -c "sudo echo ${share} ${mountpoint} nfs defaults,hard,intr,_netdev 0 0 >> /etc/fstab"
+    mount -a
+fi
+
 systemctl enable flux-start.service
 systemctl start flux-start.service
