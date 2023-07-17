@@ -37,7 +37,7 @@ class BurstParameters:
     # An isolated burst brings up an independent cluster
     isolated_burst: Optional[bool] = False
 
-    # Lead broker service hostname or ip address
+    # Lead broker service hostname or ip addressf
     lead_host: Optional[str] = None
 
     # Lead broker service port (e.g, 30093)
@@ -65,7 +65,9 @@ class BurstParameters:
     compute_name_prefix: Optional[str] = "gffw-compute-a"
     compute_machine_arch: Optional[str] = "x86-64"
     compute_machine_type: Optional[str] = "c2-standard-8"
-    compute_family: Optional[str] = "flux-bursted-compute-x86-64"
+
+    # This builds from converged-computing/flux-terraform-gcp/build-images/bursted
+    compute_family: Optional[str] = "flux-fw-bursted-x86-64"
 
     # Compact mode
     compute_compact: Optional[bool] = False
@@ -177,17 +179,10 @@ class FluxBurstComputeEngine(BurstPlugin):
         # Except gffw-manager-001 should be an ip address (typically)
         return f"{self.params.lead_host},{self.params.lead_hostnames}"
 
-    def run(self, request_burst=False, nodes=None, tasks=None):
+    def run(self, request_burst=False, nodes=None, **kwargs):
         """
         Given some set of scheduled jobs, run bursting.
         """
-        # Don't support this yet - not enough time to develop / ensure working
-        if self.params.isolated_burst:
-            logger.warning(
-                "Isolated burst is not fully tested yet, please open an issue if you want it."
-            )
-            return
-
         # Exit early if no jobs to burst
         if not self.jobs and not request_burst:
             logger.info(f"Plugin {self.name} has no jobs to burst.")

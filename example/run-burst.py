@@ -61,8 +61,6 @@ def main():
         project=args.project,
         isolated_burst=True,
         curve_cert=curve_cert,
-        compute_family="flux-fw-bursted-x86-64",
-        terraform_plan_name="burst",
         compute_machine_type="n2-standard-4",
     )
 
